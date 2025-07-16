@@ -5,7 +5,7 @@ const Booking = sequelize.define("Booking", {
   BookingName: DataTypes.STRING,
   ProjectName: DataTypes.STRING,
   ProgramTitle: DataTypes.STRING,
-  Participants: DataTypes.STRING,
+  Participants: DataTypes.INTEGER,
   EventInCharge: DataTypes.STRING,
   InChargeEmail: DataTypes.STRING,
   ApproverEmail: DataTypes.STRING,

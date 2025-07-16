@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const bookingController = require("../controllers/bookingController");
+const bookingController = require("../controllers/bookingController"); // Make sure path is correct!
 
 router.post("/", bookingController.createBooking);
 router.get("/", bookingController.getBookings);
