@@ -9,13 +9,25 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 // Middleware
+const allowedOrigins = [
+  "http://localhost:5173", // local dev
+  "https://meeting-bookings-frontend-aip9.vercel.app", // Vercel prod
+];
+
 app.use(
   cors({
-    origin: "https://meeting-bookings-frontend-aip9.vercel.app",
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
 );
+
 app.use(express.json());
 
 // Routes
