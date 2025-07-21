@@ -6,7 +6,6 @@ const validator = require("validator");
 const createBooking = async (req, res) => {
   try {
     console.log("🔍 Inside createBooking controller");
-
     const {
       BookingName,
       ProjectName,
