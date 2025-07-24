@@ -52,7 +52,7 @@ const PORT = process.env.PORT || 5000;
 // ✅ CORS setup first
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://meeting-bookings-frontend-aip9.vercel.app",
+  "https://meeting-bookings-frontend.vercel.app/",
 ];
 
 const corsOptions = {
