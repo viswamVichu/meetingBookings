@@ -2,7 +2,6 @@ const { Op } = require("sequelize");
 const Booking = require("../models/bookingModel");
 const { sendApproverMail } = require("../utils/mailer");
 const validator = require("validator");
-
 const createBooking = async (req, res) => {
   try {
     console.log("🔍 Inside createBooking controller");
@@ -183,6 +182,37 @@ const getPendingBookings = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+// 🛠️ Controller: Update Booking Status (for PATCH requests)
+// 🛠️ Controller: PATCH Booking Status
+// 🛠️ Controller: PATCH Booking Status
+const updateBookingStatus = async (req, res) => {
+  const { id } = req.params;
+  const status = req.body.status || req.body.Status; // ✅ Handle both keys
+
+  console.log(`🔄 Booking PATCH for ID: ${id} → Status: ${status}`);
+
+  if (!status) {
+    return res.status(400).json({ error: "Missing booking status" });
+  }
+
+  try {
+    const booking = await Booking.findByPk(id);
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    booking.Status = status;
+    await booking.save();
+
+    res.status(200).json({
+      message: `Booking status updated to '${status}'`,
+      booking,
+    });
+  } catch (error) {
+    console.error("❌ Update Status Error:", error.stack);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 
 module.exports = {
   createBooking,
@@ -190,4 +220,5 @@ module.exports = {
   approveBooking,
   rejectBooking,
   getPendingBookings,
+  updateBookingStatus, // ✅ add this line
 };
