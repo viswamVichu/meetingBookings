@@ -3,10 +3,27 @@ const cors = require("cors");
 const bookingRoutes = require("./routes/bookingRoutes");
 const authRoutes = require("./routes/authRoutes");
 const sequelize = require("./db");
+const { sendApproverMail } = require("./utils/mailer");
 require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// ✅ Test Mail Route
+app.get("/api/test-mail", async (req, res) => {
+  try {
+    await sendApproverMail(
+      "viswam733@gmail.com", // 👈 your own mail, for testing
+      "📬 Test Mail from Meeting System",
+      "testuser@example.com"
+    );
+    res.send("✅ Mail sent successfully to viswam733@gmail.com");
+    console.log(sendApproverMail);
+  } catch (err) {
+    console.error("❌ Test mail failed:", err.message);
+    res.status(500).send("Mail sending error");
+  }
+});
 
 // ✅ Clean CORS Setup
 const allowedOrigins = [

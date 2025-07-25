@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
+const { sendApproverMail } = require("../utils/mailer"); // 👈 added
 
-// 📝 Register route (sets status as 'pending')
+// 📝 Register route (status = 'pending' + mail to approver)
 router.post("/register", async (req, res) => {
   const { email, password, role } = req.body;
 
@@ -17,6 +18,14 @@ router.post("/register", async (req, res) => {
     }
 
     await User.create({ email, password, role, status: "pending" });
+
+    // 📩 Notify approver
+    await sendApproverMail(
+      "approver@example.com", // 🔁 you can pull this dynamically later
+      "New Registration Pending Approval",
+      email
+    );
+
     res.status(201).json({
       success: true,
       message: "User registered and pending approval",
@@ -27,7 +36,8 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// 🔐 Login route (only if status === "approved")
+// 🔒 Login route (BLOCK if not approved)
+// 🔒 Login route (allow approvers to log in even if not approved)
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -46,21 +56,28 @@ router.post("/login", async (req, res) => {
         .json({ success: false, message: "Invalid password" });
     }
 
-    if (user.status !== "approved") {
+    // ✅ Only block non-approvers if not approved
+    if (user.role !== "approver" && user.status !== "approved") {
       return res.status(403).json({
         success: false,
-        message: "Your account is pending approval",
+        message: "Your account is pending approval. Please wait.",
       });
     }
 
-    res.status(200).json({ success: true, role: user.role });
+    console.log(user.status);
+    res.status(200).json({
+      success: true,
+      role: user.role,
+      status: user.status,
+      message: "Login successful",
+    });
   } catch (err) {
     console.error("❌ Login error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-// ✅ Approve user route
+// ✅ Approve user
 router.post("/approve-user/:id", async (req, res) => {
   try {
     const user = await User.findByPk(req.params.id);
@@ -82,6 +99,9 @@ router.post("/approve-user/:id", async (req, res) => {
 router.get("/pending-users", async (req, res) => {
   try {
     const pendingUsers = await User.findAll({ where: { status: "pending" } });
+
+    console.log("📋 Fetched pending users:", pendingUsers); // ✅ AFTER definition
+
     res.status(200).json(pendingUsers);
   } catch (err) {
     console.error("❌ Fetch pending error:", err);
