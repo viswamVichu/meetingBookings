@@ -1,12 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
-const { sendApproverMail } = require("../utils/mailer"); // 👈 added
+const { sendApproverMail } = require("../utils/mailer");
 
-// 📝 Register route (status = 'pending' + mail to approver)
 router.post("/register", async (req, res) => {
   const { email, password, role } = req.body;
-
   try {
     if (!email || !password || !role) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -19,12 +17,16 @@ router.post("/register", async (req, res) => {
 
     await User.create({ email, password, role, status: "pending" });
 
-    // 📩 Notify approver
-    await sendApproverMail(
-      "approver@example.com", // 🔁 you can pull this dynamically later
-      "New Registration Pending Approval",
-      email
-    );
+    const subject = "📝 New User Registration Awaiting Approval";
+    const htmlBody = `
+      <p>A new user has registered with the following details:</p>
+      <ul>
+        <li>Email: <strong>${email}</strong></li>
+        <li>Role: ${role}</li>
+      </ul>
+      <p>Login to approve or reject this user.</p>
+    `;
+    await sendApproverMail("approver@example.com", subject, htmlBody);
 
     res.status(201).json({
       success: true,
@@ -57,12 +59,12 @@ router.post("/login", async (req, res) => {
     }
 
     // ✅ Only block non-approvers if not approved
-    if (user.role !== "approver" && user.status !== "approved") {
-      return res.status(403).json({
-        success: false,
-        message: "Your account is pending approval. Please wait.",
-      });
-    }
+    // if (user.role !== "approver" && user.status !== "approved") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Your account is pending approval. Please wait.",
+    //   });
+    // }
 
     console.log(user.status);
     res.status(200).json({

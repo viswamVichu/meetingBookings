@@ -4,7 +4,7 @@ const { sendApproverMail } = require("../utils/mailer");
 const validator = require("validator");
 const createBooking = async (req, res) => {
   try {
-    console.log("🔍 Inside createBooking controller");
+    // Extract + Validate
     const {
       BookingName,
       ProjectName,
@@ -21,9 +21,6 @@ const createBooking = async (req, res) => {
       Catering,
     } = req.body;
 
-    console.log("📦 Incoming data:", req.body);
-
-    // Validate required fields
     for (const [key, value] of Object.entries({
       BookingName,
       ProjectName,
@@ -35,9 +32,8 @@ const createBooking = async (req, res) => {
       StartTime,
       EndTime,
     })) {
-      if (!value) {
+      if (!value)
         return res.status(400).json({ error: `Missing field: ${key}` });
-      }
     }
 
     if (
@@ -49,14 +45,12 @@ const createBooking = async (req, res) => {
 
     const parsedStart = new Date(StartTime);
     const parsedEnd = new Date(EndTime);
-    if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
-      return res.status(400).json({ error: "Invalid date format" });
-    }
-
-    if (parsedEnd <= parsedStart) {
-      return res
-        .status(400)
-        .json({ error: "End time must be after start time" });
+    if (
+      parsedEnd <= parsedStart ||
+      isNaN(parsedStart.getTime()) ||
+      isNaN(parsedEnd.getTime())
+    ) {
+      return res.status(400).json({ error: "Invalid timing" });
     }
 
     const overlap = await Booking.findOne({
@@ -66,12 +60,10 @@ const createBooking = async (req, res) => {
         EndTime: { [Op.gt]: parsedStart },
       },
     });
-
-    if (overlap) {
+    if (overlap)
       return res
         .status(409)
-        .json({ error: "Room already booked at this time." });
-    }
+        .json({ error: "Room already booked at this time" });
 
     const parsedParticipants = parseInt(Participants, 10);
     if (isNaN(parsedParticipants) || parsedParticipants <= 0) {
@@ -98,8 +90,20 @@ const createBooking = async (req, res) => {
     };
 
     const newBooking = await Booking.create(bookingPayload);
-    console.log("✅ Booking created:", newBooking.id);
-    return res.status(201).json(newBooking);
+
+    const subject = "📅 New Meeting Booking Request";
+    const htmlBody = `
+      <h3>Meeting Request Details</h3>
+      <p><strong>Event In-Charge:</strong> ${EventInCharge}<br/>
+      <strong>Room:</strong> ${MeetingRoom}<br/>
+      <strong>Time:</strong> ${StartTime} – ${EndTime}<br/>
+      <strong>Program:</strong> ${ProgramTitle}<br/>
+      <strong>Project:</strong> ${ProjectName}</p>
+      <p>Please review the request in the meeting portal.</p>
+    `;
+    await sendApproverMail(ApproverEmail, subject, htmlBody);
+
+    res.status(201).json(newBooking);
   } catch (error) {
     console.error("❌ Create Booking Error:", error.stack);
     res.status(500).json({ error: "Internal server error" });
