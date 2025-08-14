@@ -33,8 +33,9 @@ sequelize
   .authenticate()
   .then(() => {
     console.log("✅ Database connected.");
-    return sequelize.sync();
+    // No sync here — migrations already handle schema
   })
+
   .then(() => {
     console.log("✅ Models synced.");
     app.listen(PORT, () => {

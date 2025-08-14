@@ -111,4 +111,91 @@ router.get("/pending-users", async (req, res) => {
   }
 });
 
+router.post("/bookings/:id/approve", async (req, res) => {
+  try {
+    const booking = await Booking.findByPk(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    booking.Status = "approved";
+    await booking.save();
+
+    // ✅ Optional: mail notification
+    if (booking.Email) {
+      await sendMail(
+        booking.Email,
+        "✅ Booking Approved",
+        `
+        <p>Hello ${booking.BookingName},</p>
+        <p>Your booking for <strong>${booking.MeetingRoom}</strong> has been approved.</p>
+        <p>Time: ${booking.StartTime} to ${booking.EndTime}</p>
+        <p>Thank you!</p>
+        `
+      );
+    }
+
+    res.json({ success: true, message: "Booking approved" });
+  } catch (err) {
+    console.error("❌ Booking approval error:", err);
+    res.status(500).json({ message: "Server error during approval" });
+  }
+});
+
+// ❌ Reject booking
+router.post("/bookings/:id/reject", async (req, res) => {
+  try {
+    const booking = await Booking.findByPk(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    booking.Status = "rejected";
+    await booking.save();
+
+    res.json({ success: true, message: "Booking rejected" });
+  } catch (err) {
+    console.error("❌ Booking rejection error:", err);
+    res.status(500).json({ message: "Server error during rejection" });
+  }
+});
+
+// ✅ Get all approved bookings
+router.get("/bookings", async (req, res) => {
+  const statusFilter = req.query.status || "approved";
+  try {
+    const bookings = await Booking.findAll({ where: { Status: statusFilter } });
+    res.json(bookings);
+  } catch (err) {
+    console.error("❌ Fetch bookings error:", err);
+    res.status(500).json({ message: "Server error while fetching bookings" });
+  }
+});
+
+// 📥 Get pending bookings
+router.get("/bookings/pending", async (req, res) => {
+  try {
+    const pending = await Booking.findAll({ where: { Status: "pending" } });
+    res.json(pending);
+  } catch (err) {
+    console.error("❌ Pending fetch error:", err);
+    res.status(500).json({ message: "Failed to fetch pending bookings" });
+  }
+});
+router.get("/bookings/cancelled", async (req, res) => {
+  try {
+    const cancelled = await Booking.findAll({
+      where: { Status: "cancelled" },
+      order: [["StartTime", "DESC"]],
+    });
+    res.status(200).json(cancelled);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Server error fetching cancelled bookings" });
+  }
+});
+
 module.exports = router;

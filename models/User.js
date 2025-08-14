@@ -18,7 +18,7 @@ const User = sequelize.define("User", {
   status: {
     type: DataTypes.STRING,
     allowNull: false,
-    defaultValue: "pending", // 👈 makes sure users start as pending
+    defaultValue: "pending",
   },
 });
 

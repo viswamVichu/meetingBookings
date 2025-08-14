@@ -2,12 +2,14 @@ const { Op } = require("sequelize");
 const Booking = require("../models/bookingModel");
 const { sendApproverMail } = require("../utils/mailer");
 const validator = require("validator");
+
+// 📝 Create Booking Controller
 const createBooking = async (req, res) => {
   try {
-    // Extract + Validate
     const {
       BookingName,
       ProjectName,
+      ProgramName,
       ProgramTitle,
       Participants,
       EventInCharge,
@@ -21,9 +23,11 @@ const createBooking = async (req, res) => {
       Catering,
     } = req.body;
 
-    for (const [key, value] of Object.entries({
+    // Required field check
+    const requiredFields = {
       BookingName,
       ProjectName,
+      ProgramName,
       ProgramTitle,
       EventInCharge,
       InChargeEmail,
@@ -31,11 +35,15 @@ const createBooking = async (req, res) => {
       MeetingRoom,
       StartTime,
       EndTime,
-    })) {
-      if (!value)
-        return res.status(400).json({ error: `Missing field: ${key}` });
+    };
+
+    for (const [field, value] of Object.entries(requiredFields)) {
+      if (!value) {
+        return res.status(400).json({ error: `Missing field: ${field}` });
+      }
     }
 
+    // Email validation
     if (
       !validator.isEmail(InChargeEmail) ||
       !validator.isEmail(ApproverEmail)
@@ -43,8 +51,10 @@ const createBooking = async (req, res) => {
       return res.status(400).json({ error: "Invalid email format" });
     }
 
+    // Parse and validate time
     const parsedStart = new Date(StartTime);
     const parsedEnd = new Date(EndTime);
+
     if (
       parsedEnd <= parsedStart ||
       isNaN(parsedStart.getTime()) ||
@@ -53,18 +63,7 @@ const createBooking = async (req, res) => {
       return res.status(400).json({ error: "Invalid timing" });
     }
 
-    const overlap = await Booking.findOne({
-      where: {
-        MeetingRoom,
-        StartTime: { [Op.lt]: parsedEnd },
-        EndTime: { [Op.gt]: parsedStart },
-      },
-    });
-    if (overlap)
-      return res
-        .status(409)
-        .json({ error: "Room already booked at this time" });
-
+    // Parse participants
     const parsedParticipants = parseInt(Participants, 10);
     if (isNaN(parsedParticipants) || parsedParticipants <= 0) {
       return res
@@ -72,9 +71,34 @@ const createBooking = async (req, res) => {
         .json({ error: "Participants must be a positive number" });
     }
 
+    // Overlap check with error capture
+    let overlap = null;
+    try {
+      overlap = await Booking.findOne({
+        where: {
+          MeetingRoom,
+          StartTime: { [Op.lt]: parsedEnd },
+          EndTime: { [Op.gt]: parsedStart },
+        },
+      });
+    } catch (queryErr) {
+      console.error("❌ Error during overlap check:", queryErr.message);
+      return res
+        .status(500)
+        .json({ error: "DB query error during overlap check" });
+    }
+
+    if (overlap) {
+      return res
+        .status(409)
+        .json({ error: "Room already booked at this time" });
+    }
+
+    // Booking payload
     const bookingPayload = {
       BookingName,
       ProjectName,
+      ProgramName,
       ProgramTitle,
       Participants: parsedParticipants,
       EventInCharge,
@@ -91,32 +115,53 @@ const createBooking = async (req, res) => {
 
     const newBooking = await Booking.create(bookingPayload);
 
-    const subject = "📅 New Meeting Booking Request";
-    const htmlBody = `
-      <h3>Meeting Request Details</h3>
-      <p><strong>Event In-Charge:</strong> ${EventInCharge}<br/>
-      <strong>Room:</strong> ${MeetingRoom}<br/>
-      <strong>Time:</strong> ${StartTime} – ${EndTime}<br/>
-      <strong>Program:</strong> ${ProgramTitle}<br/>
-      <strong>Project:</strong> ${ProjectName}</p>
-      <p>Please review the request in the meeting portal.</p>
-    `;
-    await sendApproverMail(ApproverEmail, subject, htmlBody);
+    // Send email (optional)
+    try {
+      const subject = "📅 New Meeting Booking Request";
+      const htmlBody = `
+        <h3>Meeting Request Details</h3>
+        <p><strong>Event In-Charge:</strong> ${EventInCharge}<br/>
+        <strong>Room:</strong> ${MeetingRoom}<br/>
+        <strong>Time:</strong> ${parsedStart} – ${parsedEnd}<br/>
+        <strong>Program:</strong> ${ProgramTitle}<br/>
+        <strong>Project:</strong> ${ProjectName}</p>
+        <strong>Program Name:</strong> ${ProgramName}<br/>
+
+        <p>Please review the request in the meeting portal.</p>
+      `;
+      await sendApproverMail(ApproverEmail, subject, htmlBody);
+    } catch (mailError) {
+      console.error("📧 Email send failed:", mailError.message);
+    }
 
     res.status(201).json(newBooking);
   } catch (error) {
-    console.error("❌ Create Booking Error:", error.stack);
+    console.error("❌ Booking creation failed:", error.stack);
     res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// 🧠 Controller: Get All Bookings
+// 🧠 Get Bookings (with email/status filters)
 const getBookings = async (req, res) => {
   try {
-    console.log("📍 Inside getBookings");
+    console.log("📍 getBookings triggered");
+
     const where = {};
-    if (req.query.status) where.Status = req.query.status;
-    const bookings = await Booking.findAll({ where });
+
+    // ✅ Filter by InChargeEmail if email provided
+    if (req.query.email) {
+      console.log("🔍 Filtering by email:", req.query.email);
+      where.InChargeEmail = req.query.email;
+    }
+
+    // ✅ Filter by status if provided
+
+    // ✅ Sort by StartTime DESC (latest first)
+    const bookings = await Booking.findAll({
+      where,
+      order: [["StartTime", "DESC"]],
+    });
+
     res.status(200).json(bookings);
   } catch (error) {
     console.error("❌ Get Bookings Error:", error.stack);
@@ -124,7 +169,7 @@ const getBookings = async (req, res) => {
   }
 };
 
-// 🧠 Controller: Approve Booking
+// ✅ Approve Booking
 const approveBooking = async (req, res) => {
   try {
     const booking = await Booking.findByPk(req.params.id);
@@ -156,7 +201,7 @@ const approveBooking = async (req, res) => {
   }
 };
 
-// 🧠 Controller: Reject Booking
+// ❌ Reject Booking
 const rejectBooking = async (req, res) => {
   try {
     const booking = await Booking.findByPk(req.params.id);
@@ -176,7 +221,7 @@ const rejectBooking = async (req, res) => {
   }
 };
 
-// 🧠 Controller: Get Pending Bookings
+// 📌 Get Only Pending Bookings
 const getPendingBookings = async (req, res) => {
   try {
     const bookings = await Booking.findAll({ where: { Status: "pending" } });
@@ -186,12 +231,11 @@ const getPendingBookings = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-// 🛠️ Controller: Update Booking Status (for PATCH requests)
-// 🛠️ Controller: PATCH Booking Status
-// 🛠️ Controller: PATCH Booking Status
+
+// 🔄 Update Booking Status (PATCH)
 const updateBookingStatus = async (req, res) => {
   const { id } = req.params;
-  const status = req.body.status || req.body.Status; // ✅ Handle both keys
+  const status = req.body.status || req.body.Status;
 
   console.log(`🔄 Booking PATCH for ID: ${id} → Status: ${status}`);
 
@@ -224,5 +268,5 @@ module.exports = {
   approveBooking,
   rejectBooking,
   getPendingBookings,
-  updateBookingStatus, // ✅ add this line
+  updateBookingStatus,
 };

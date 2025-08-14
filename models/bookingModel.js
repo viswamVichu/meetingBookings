@@ -1,13 +1,19 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../db");
 
+
 const Booking = sequelize.define("Booking", {
   BookingName: DataTypes.STRING,
   ProjectName: DataTypes.STRING,
+  ProgramName: DataTypes.STRING, // 👈 NEW FIELD
   ProgramTitle: DataTypes.STRING,
   Participants: DataTypes.INTEGER,
   EventInCharge: DataTypes.STRING,
-  InChargeEmail: DataTypes.STRING,
+  InChargeEmail: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: { isEmail: true },
+  },
   ApproverEmail: DataTypes.STRING,
   MeetingRoom: DataTypes.STRING,
   StartTime: DataTypes.DATE,
